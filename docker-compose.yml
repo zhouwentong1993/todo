@@ -1,0 +1,17 @@
+services:
+  todo:
+    build: .
+    container_name: todo-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3018:3018"
+    environment:
+      NODE_ENV: production
+      PORT: 3018
+      DATA_DIR: /app/data
+      JWT_SECRET: ${JWT_SECRET:-todo-change-me}
+      SEED_PHONE: ${SEED_PHONE:-13671308802}
+      SEED_PASSWORD: ${SEED_PASSWORD:-123456}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://todo.libary.cn,http://todo.libary.cn}
+    volumes:
+      - ./data:/app/data
