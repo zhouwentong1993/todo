@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import Database from "better-sqlite3";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { isRepeatRule, nextRepeatDate, type RepeatRule } from "../shared/dateRules.js";
 import type {
   AppState,
   CreateListInput,
@@ -49,7 +50,7 @@ interface TaskRow {
   due_date: string | null;
   due_time: string | null;
   reminder_at: string | null;
-  repeat_rule: string | null;
+  repeat_rule: RepeatRule | null;
   priority: Priority;
   status: TaskStatus;
   tags: string;
@@ -131,6 +132,10 @@ function toTask(row: TaskRow): TodoTask {
 
 function cleanPriority(value: unknown): Priority {
   return value === 1 || value === 2 || value === 3 ? value : 0;
+}
+
+function cleanRepeatRule(value: unknown): RepeatRule | null {
+  return isRepeatRule(value) ? value : null;
 }
 
 function cleanTags(tags: unknown): string[] {
@@ -248,6 +253,37 @@ export function createTodoStore(db: Database.Database, config: StoreConfig): Tod
     return row;
   };
 
+  const insertTask = (userId: string, input: CreateTaskInput) => {
+    const title = input.title.trim();
+    if (!title) throw new Error("TITLE_REQUIRED");
+    const list = ensureList(userId, input.listId);
+    const createdAt = now();
+    const id = randomUUID();
+    db.prepare(
+      `INSERT INTO tasks (
+        id, user_id, list_id, title, notes, due_date, due_time, reminder_at, repeat_rule,
+        priority, status, tags, subtasks, sort_order, created_at, updated_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, NULL)`
+    ).run(
+      id,
+      userId,
+      list.id,
+      title,
+      input.notes?.trim() ?? "",
+      input.dueDate ?? null,
+      input.dueTime ?? null,
+      input.reminderAt ?? null,
+      cleanRepeatRule(input.repeatRule),
+      cleanPriority(input.priority),
+      JSON.stringify(cleanTags(input.tags)),
+      JSON.stringify(cleanSubtasks(input.subtasks)),
+      Date.now(),
+      createdAt,
+      createdAt
+    );
+    return toTask(db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow);
+  };
+
   return {
     login(phone, password) {
       const row = db.prepare("SELECT * FROM users WHERE phone = ?").get(phone) as UserRow | undefined;
@@ -279,35 +315,7 @@ export function createTodoStore(db: Database.Database, config: StoreConfig): Tod
     },
 
     createTask(userId, input) {
-      const title = input.title.trim();
-      if (!title) throw new Error("TITLE_REQUIRED");
-      const list = ensureList(userId, input.listId);
-      const createdAt = now();
-      const id = randomUUID();
-      db.prepare(
-        `INSERT INTO tasks (
-          id, user_id, list_id, title, notes, due_date, due_time, reminder_at, repeat_rule,
-          priority, status, tags, subtasks, sort_order, created_at, updated_at, completed_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, NULL)`
-      ).run(
-        id,
-        userId,
-        list.id,
-        title,
-        input.notes?.trim() ?? "",
-        input.dueDate ?? null,
-        input.dueTime ?? null,
-        input.reminderAt ?? null,
-        input.repeatRule ?? null,
-        cleanPriority(input.priority),
-        JSON.stringify(cleanTags(input.tags)),
-        JSON.stringify(cleanSubtasks(input.subtasks)),
-        Date.now(),
-        createdAt,
-        createdAt
-      );
-      const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as TaskRow;
-      return toTask(row);
+      return insertTask(userId, input);
     },
 
     updateTask(userId, taskId, input) {
@@ -322,6 +330,7 @@ export function createTodoStore(db: Database.Database, config: StoreConfig): Tod
       const updatedAt = now();
       const completedAt =
         status === "completed" ? current.completed_at ?? updatedAt : status === "active" ? null : current.completed_at;
+      const repeatRule = input.repeatRule === undefined ? current.repeat_rule : cleanRepeatRule(input.repeatRule);
 
       db.prepare(
         `UPDATE tasks SET
@@ -335,7 +344,7 @@ export function createTodoStore(db: Database.Database, config: StoreConfig): Tod
         input.dueDate === undefined ? current.due_date : input.dueDate,
         input.dueTime === undefined ? current.due_time : input.dueTime,
         input.reminderAt === undefined ? current.reminder_at : input.reminderAt,
-        input.repeatRule === undefined ? current.repeat_rule : input.repeatRule,
+        repeatRule,
         input.priority === undefined ? current.priority : cleanPriority(input.priority),
         status,
         input.tags === undefined ? current.tags : JSON.stringify(cleanTags(input.tags)),
@@ -346,7 +355,30 @@ export function createTodoStore(db: Database.Database, config: StoreConfig): Tod
         userId,
         taskId
       );
-      return toTask(db.prepare("SELECT * FROM tasks WHERE user_id = ? AND id = ?").get(userId, taskId) as TaskRow);
+      const updated = toTask(db.prepare("SELECT * FROM tasks WHERE user_id = ? AND id = ?").get(userId, taskId) as TaskRow);
+      if (current.status !== "completed" && updated.status === "completed" && updated.repeatRule && updated.dueDate) {
+        const nextDate = nextRepeatDate(updated.dueDate, updated.repeatRule);
+        const duplicate = db
+          .prepare(
+            "SELECT id FROM tasks WHERE user_id = ? AND title = ? AND list_id = ? AND due_date = ? AND repeat_rule = ? AND status = 'active'"
+          )
+          .get(userId, updated.title, updated.listId, nextDate, updated.repeatRule);
+        if (!duplicate) {
+          insertTask(userId, {
+            listId: updated.listId,
+            title: updated.title,
+            notes: updated.notes,
+            dueDate: nextDate,
+            dueTime: updated.dueTime,
+            reminderAt: null,
+            repeatRule: updated.repeatRule,
+            priority: updated.priority,
+            tags: updated.tags,
+            subtasks: updated.subtasks.map((subtask) => ({ ...subtask, done: false }))
+          });
+        }
+      }
+      return updated;
     },
 
     deleteTask(userId, taskId) {

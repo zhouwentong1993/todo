@@ -1,3 +1,5 @@
+import type { RepeatRule } from "./dateRules.js";
+
 export type Priority = 0 | 1 | 2 | 3;
 export type TaskStatus = "active" | "completed";
 
@@ -32,7 +34,7 @@ export interface TodoTask {
   dueDate: string | null;
   dueTime: string | null;
   reminderAt: string | null;
-  repeatRule: string | null;
+  repeatRule: RepeatRule | null;
   priority: Priority;
   status: TaskStatus;
   tags: string[];
@@ -62,7 +64,7 @@ export interface CreateTaskInput {
   dueDate?: string | null;
   dueTime?: string | null;
   reminderAt?: string | null;
-  repeatRule?: string | null;
+  repeatRule?: RepeatRule | null;
   priority?: Priority;
   tags?: string[];
   subtasks?: Subtask[];
@@ -90,4 +92,5 @@ export interface QuickTaskDraft {
   dueTime: string | null;
   priority: Priority;
   tags: string[];
+  repeatRule: RepeatRule | null;
 }

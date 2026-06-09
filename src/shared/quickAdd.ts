@@ -1,4 +1,5 @@
 import type { Priority, QuickTaskDraft } from "./types.js";
+import { addChinaDays, formatDate, parseWeekdayToken, type RepeatRule } from "./dateRules.js";
 
 const priorityTokens: Record<string, Priority> = {
   "!高": 3,
@@ -11,36 +12,17 @@ const priorityTokens: Record<string, Priority> = {
   p3: 3
 };
 
-function chinaParts(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).formatToParts(date);
-
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return {
-    year: Number(get("year")),
-    month: Number(get("month")),
-    day: Number(get("day"))
-  };
-}
-
-function addChinaDays(base: Date, days: number) {
-  const parts = chinaParts(base);
-  const utc = Date.UTC(parts.year, parts.month - 1, parts.day + days, 0, 0, 0);
-  return new Date(utc);
-}
-
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "UTC",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).format(date);
-}
+const repeatTokens: Record<string, RepeatRule> = {
+  每天: "daily",
+  每日: "daily",
+  daily: "daily",
+  every_day: "daily",
+  每周: "weekly",
+  每星期: "weekly",
+  weekly: "weekly",
+  每月: "monthly",
+  monthly: "monthly"
+};
 
 export function parseQuickTask(input: string, baseDate = new Date()): QuickTaskDraft {
   let working = input.trim().replace(/\s+/g, " ");
@@ -49,6 +31,7 @@ export function parseQuickTask(input: string, baseDate = new Date()): QuickTaskD
 
   let dueDate: string | null = null;
   let dueTime: string | null = null;
+  let repeatRule: RepeatRule | null = null;
   const dateRules: Array<[RegExp, number]> = [
     [/(^|\s)(今天|today)(?=\s|$)/i, 0],
     [/(^|\s)(明天|tomorrow)(?=\s|$)/i, 1],
@@ -69,6 +52,12 @@ export function parseQuickTask(input: string, baseDate = new Date()): QuickTaskD
     working = working.replace(absoluteDate[0], " ");
   }
 
+  const weekday = working.match(/(^|\s)((?:下)?(?:周|星期|礼拜)[日天一二三四五六])(?=\s|$)/);
+  if (weekday) {
+    dueDate = parseWeekdayToken(weekday[2], baseDate);
+    working = working.replace(weekday[0], " ");
+  }
+
   const time = working.match(/(^|\s)([01]?\d|2[0-3]):([0-5]\d)(?=\s|$)/);
   if (time) {
     dueTime = `${time[2].padStart(2, "0")}:${time[3]}`;
@@ -85,11 +74,21 @@ export function parseQuickTask(input: string, baseDate = new Date()): QuickTaskD
     }
   }
 
+  for (const [token, value] of Object.entries(repeatTokens)) {
+    const pattern = new RegExp(`(^|\\s)${token}(?=\\s|$)`, "i");
+    if (pattern.test(working)) {
+      repeatRule = value;
+      working = working.replace(pattern, " ");
+      break;
+    }
+  }
+
   return {
     title: working.trim().replace(/\s+/g, " ") || input.trim(),
     dueDate,
     dueTime,
     priority,
-    tags
+    tags,
+    repeatRule
   };
 }

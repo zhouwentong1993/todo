@@ -65,4 +65,33 @@ describe("todo store", () => {
       tags: ["开发"]
     });
   });
+
+  it("creates the next occurrence when a repeating task is completed", () => {
+    const store = makeStore();
+    const session = store.login("13671308802", "123456");
+    const inbox = store.getState(session.user.id).lists[0];
+
+    const task = store.createTask(session.user.id, {
+      listId: inbox.id,
+      title: "每日站会",
+      dueDate: "2026-06-10",
+      dueTime: "09:30",
+      repeatRule: "daily"
+    });
+
+    store.updateTask(session.user.id, task.id, { status: "completed" });
+
+    const state = store.getState(session.user.id);
+    const completed = state.tasks.find((item) => item.id === task.id);
+    const next = state.tasks.find((item) => item.id !== task.id);
+
+    expect(completed?.status).toBe("completed");
+    expect(next).toMatchObject({
+      title: "每日站会",
+      status: "active",
+      dueDate: "2026-06-11",
+      dueTime: "09:30",
+      repeatRule: "daily"
+    });
+  });
 });

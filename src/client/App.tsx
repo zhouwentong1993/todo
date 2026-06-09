@@ -13,6 +13,12 @@ const priorityText: Record<Priority, string> = {
   3: "高"
 };
 
+const repeatText = {
+  daily: "每天",
+  weekly: "每周",
+  monthly: "每月"
+} as const;
+
 function chinaDate(offset = 0) {
   const now = new Date();
   const utc = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + offset);
@@ -239,6 +245,12 @@ function TaskRow({
               {completedSubtasks}/{task.subtasks.length}
             </span>
           ) : null}
+          {task.repeatRule ? (
+            <span>
+              <Icon name="refresh" />
+              {repeatText[task.repeatRule]}
+            </span>
+          ) : null}
           {task.tags.map((tag) => (
             <span key={tag}>
               <Icon name="tag" />
@@ -368,6 +380,20 @@ function DetailPane({
                 {priorityText[priority]}
               </option>
             ))}
+          </select>
+        </label>
+        <label>
+          <span>重复</span>
+          <select
+            value={task.repeatRule ?? ""}
+            onChange={(event) =>
+              onUpdate(task.id, { repeatRule: (event.target.value || null) as TodoTask["repeatRule"] })
+            }
+          >
+            <option value="">无</option>
+            <option value="daily">每天</option>
+            <option value="weekly">每周</option>
+            <option value="monthly">每月</option>
           </select>
         </label>
         <label>

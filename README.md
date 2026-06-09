@@ -8,6 +8,8 @@ TickTick-inspired web todo app for `todo.libary.cn`.
 - Desktop three-pane workflow and mobile drawer/bottom-nav layout.
 - Smart views: all, inbox, today, upcoming, completed.
 - Custom lists, quick add parsing, tags, priority, due date/time, notes, subtasks.
+- Quick add understands `今天`, `明天`, `周五`, `下周一`, `每天`, `每周`, `每月`, `#标签`, and `!高/!中/!低`.
+- Completing a repeating task creates the next occurrence automatically.
 - Realtime multi-client sync through Socket.IO.
 - SQLite file storage for a small ECS-friendly deployment.
 
