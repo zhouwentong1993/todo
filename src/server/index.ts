@@ -10,6 +10,7 @@ import { createTodoStore } from "./store.js";
 import type { CreateListInput, CreateTaskInput, UpdateListInput, UpdateTaskInput, UserProfile } from "../shared/types.js";
 
 const port = Number(process.env.PORT ?? 3018);
+const host = process.env.HOST ?? "0.0.0.0";
 const dataDir = process.env.DATA_DIR ?? path.join(process.cwd(), "data");
 mkdirSync(dataDir, { recursive: true });
 
@@ -180,6 +181,6 @@ app.get(/^\/(?!api|socket\.io).*/, (_req, res) => {
   res.sendFile(path.join(clientDist, "index.html"));
 });
 
-httpServer.listen(port, () => {
-  console.log(`todo listening on ${port}`);
+httpServer.listen(port, host, () => {
+  console.log(`todo listening on ${host}:${port}`);
 });

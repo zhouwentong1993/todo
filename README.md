@@ -16,7 +16,7 @@ TickTick-inspired web todo app for `todo.libary.cn`.
 ```bash
 npm install
 npm run build
-PORT=3018 JWT_SECRET=local-dev-secret npm start
+PORT=3018 HOST=127.0.0.1 JWT_SECRET=local-dev-secret npm start
 ```
 
 Open `http://127.0.0.1:3018`.

@@ -9,6 +9,7 @@ services:
       - "127.0.0.1:3018:3018"
     environment:
       NODE_ENV: production
+      HOST: 0.0.0.0
       PORT: 3018
       DATA_DIR: /app/data
       JWT_SECRET: ${JWT_SECRET:-todo-change-me}
